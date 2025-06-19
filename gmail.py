@@ -1,4 +1,6 @@
 import os.path
+import base64
+import json
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -23,6 +25,7 @@ SCOPES = [
 'https://www.googleapis.com/auth/gmail.labels', # Manage labels
 'https://www.googleapis.com/auth/gmail.compose',  # Create and send
 'https://www.googleapis.com/auth/gmail.insert', # Insert messages
+'https://www.googleapis.com/auth/gmail.readonly',
 'https://mail.google.com/'  # Full access
 ]
 
@@ -67,6 +70,24 @@ class GoogleMailAPI:
     self.service = build("gmail", "v1", credentials=creds)    
     print("Successfully authenticated with Google GMail API!")  
       
+  # # setup webhook
+    # request = {
+    #   'labelIds': ['INBOX'],
+    #   'topicName': 'projects/mcp-gdrive-api/topics/GoAction'
+    # }
+    # response = self.service.users().watch(userId='me', body=request).execute()
+    # print(response)
+
+  def _setup_webhook(self):
+    """Set up a webhook for receiving notifications"""
+    request = {
+      'labelIds': ['INBOX'],
+      'topicName': 'projects/mcp-gdrive-api/topics/GoAction'
+    }
+    response = self.service.users().watch(userId='me', body=request).execute()
+    print("Webhook setup response:", response)
+    return response
+  
   def list_messages(self):
       # messages
     results = self.service.users().messages().list(userId="me").execute()
@@ -101,10 +122,10 @@ class GoogleMailAPI:
     # get message 
     results = self.service.users().messages().list(userId='me', labelIds=['INBOX'], maxResults=10).execute()
     messageIds = results.get('messages', [])
-    # print(messages)
-    # [{'id': '19740c639b178d8c', 'threadId': '19740c639b178d8c'}, 
-    # {'id': '196f932cfd12ad4e', 'threadId': '196f932cfd12ad4e'}, 
-    # {'id': '196a96c1b0a28ca8', 'threadId': '196a96c1b0a28ca8'}]
+    # # print(messages)
+    # # [{'id': '19740c639b178d8c', 'threadId': '19740c639b178d8c'}, 
+    # # {'id': '196f932cfd12ad4e', 'threadId': '196f932cfd12ad4e'}, 
+    # # {'id': '196a96c1b0a28ca8', 'threadId': '196a96c1b0a28ca8'}]
     message_list = []
     for msgId in messageIds:    
       msg = self.service.users().messages().get(userId='me', id=msgId["id"]).execute()
@@ -114,6 +135,61 @@ class GoogleMailAPI:
         "snippet": msg["snippet"]
       })
     return message_list
+      
+  def list_history(self, history_id=None):
+    """  
+    # # Your base64-encoded string
+    # encoded_data = "eyJlbWFpbEFkZHJlc3MiOiJ0ZWNrcGlvQHNreWRyaXZlc29sdXRpb24uY29tIiwiaGlzdG9yeUlkIjoxNjU1Nzd9"
+    # # Decode from base64
+    # decoded_bytes = base64.urlsafe_b64decode(encoded_data)
+    # decoded_str = decoded_bytes.decode('utf-8')
+    # # Convert to JSON
+    # data = json.loads(decoded_str)
+    # # Print the result
+    # # print(data)
+    # # # {'emailAddress': 'teckpio@skydrivesolution.com', 'historyId': 165559}
+    """
+    # history_id = "0"  # Default to a specific history ID if not provided
+    history_response = self.service.users().history().list(
+      userId='me',  
+      startHistoryId=history_id,  # Use the historyId from the decoded data
+      maxResults=10,  # Optional: limit the number of history records returned
+      # Optional: specify the types of history you want to retrieve
+      historyTypes=['messageAdded']
+    ).execute()
+    print('resp', history_response)
+    # # {
+    #   # 'history': [{
+    #     # 'id': '165583', 
+    #     # 'messages': [{'id': '197795d56cdb8fff', 'threadId': '197795d56cdb8fff'}], 
+    #     # 'messagesAdded': [{
+    #           # 'message': {
+    #             # 'id': '197795d56cdb8fff', 
+    #             # 'threadId': '197795d56cdb8fff', 
+    #             # 'labelIds': ['UNREAD', 'CATEGORY_PERSONAL', 'INBOX']
+    #           # }
+    #       # }]
+    #     # }], 
+    #   # 'historyId': '165644'
+    # # }
+    
+    message_list = []
+    if 'history' in history_response:
+      for record in history_response['history']:
+        for msg in record.get('messagesAdded', []):
+          msg_id = msg['message']['id']
+          message = self.service.users().messages().get(userId='me', id=msg_id, format='full').execute()
+          print(f"Message ID: {msg_id}")
+          print(f"Snippet: {message['snippet']}")
+          message_list.append({
+            "id": msg_id,
+            "snippet": message['snippet'],
+          })
+    else:
+      print("No history found.")
+      
+    return message_list   
+    
     
   def send_message(self, recipient='', subject='', content=''):
     import base64
@@ -179,7 +255,9 @@ class GoogleMailAPI:
 
 def main():
     gmail_api = GoogleMailAPI()
-    print(gmail_api.list_messages())
+    # gmail_api._setup_webhook()
+    print(gmail_api.list_history("166588"))
+    pass
     
 if __name__ == "__main__":
   main()

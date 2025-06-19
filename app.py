@@ -41,6 +41,7 @@ def send_message(arg):
 if __name__ == "__main__":
     # gmail = GoogleMailAPI()
     # gmail.send_message('liew.tp@grenapps.com.my', 'testing', 'testing content')
+    
     # Initialize and run the server
     # mcp.run(transport='stdio')
     transport = "stdio"
